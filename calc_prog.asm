@@ -1,11 +1,22 @@
 .data
-menu:    .asciiz "\nCALCULADORA PROGRAMADOR DIDÁTICA\n1) DEC -> BIN/OCT/HEX/BCD\n2) DEC -> COMPLEMENTO A 2 (16 bits)\n3) REAL -> FLOAT/DOUBLE (bits IEEE-754)\n0) SAIR\nEscolha: "
+menu:    .asciiz "\nCALCULADORA PROGRAMADOR DIDÁTICA\n1) DEC -> BIN/OCT/HEX\n2) DEC -> COMPLEMENTO A 2 (16 bits)\n3) REAL -> FLOAT/DOUBLE (bits IEEE-754)\n0) SAIR\nEscolha: "
 nl:      .asciiz "\n"
 sep:     .asciiz "----------------------------------------\n"
-opt1:    .asciiz "Você escolheu: DEC -> BIN/OCT/HEX/BCD\n"
 opt2:    .asciiz "Você escolheu: COMPLEMENTO A 2 (16 bits)\n"
 opt3:    .asciiz "Você escolheu: REAL -> FLOAT/DOUBLE (bits IEEE-754)\n"
 bye:     .asciiz "Encerrando programa...\n"
+lbl_inteiro: .asciiz "Entre com um número inteiro em base 10: "
+lbl_base:    .asciiz "Escolha a base destino (2, 8 ou 16): "
+lbl_passos:  .asciiz "Passos da conversão (divisões sucessivas):\n"
+lbl_result:  .asciiz "Resultado final: "
+lbl_div:     .asciiz "  "
+lbl_div_a:   .asciiz " / "
+lbl_div_b:   .asciiz " = "
+lbl_div_r:   .asciiz " resto "
+lbl_invalid: .asciiz "Base inválida.\n"
+
+stack: .space 1024
+top:   .word 0
 
 .text
 .globl main
@@ -26,14 +37,123 @@ print_int:
     syscall
     jr $ra
 
+print_char:
+    li $v0, 11
+    syscall
+    jr $ra
+
+reset_stack:
+    la $t0, top
+    sw $zero, 0($t0)
+    jr $ra
+
+push_digit:
+    la $t0, top
+    lw $t1, 0($t0)
+    la $t2, stack
+    addu $t3, $t2, $t1
+    sb $a0, 0($t3)
+    addiu $t1, $t1, 1
+    sw $t1, 0($t0)
+    jr $ra
+
+pop_digit:
+    la $t0, top
+    lw $t1, 0($t0)
+    beq $t1, $zero, empty
+    addiu $t1, $t1, -1
+    sw $t1, 0($t0)
+    la $t2, stack
+    addu $t3, $t2, $t1
+    lb $v0, 0($t3)
+    li $v1, 1
+    jr $ra
+empty:
+    move $v1, $zero
+    jr $ra
+
+print_digit:
+    move $t0, $a0
+    li $t1, 10
+    blt $t0, $t1, num
+    addiu $t0, $t0, -10
+    li $t2, 'A'
+    addu $t0, $t0, $t2
+    move $a0, $t0
+    jal print_char
+    jr $ra
+num:
+    li $t2, '0'
+    addu $t0, $t0, $t2
+    move $a0, $t0
+    jal print_char
+    jr $ra
+
+dec_to_base:
+    move $t0, $a0
+    move $t1, $a1
+    beq $t0, $zero, zero_case
+
+    la $a0, lbl_passos
+    jal print_str
+    jal reset_stack
+
+loop:
+    div $t0, $t1
+    mflo $t2
+    mfhi $t3
+
+    la $a0, lbl_div
+    jal print_str
+    move $a0, $t0
+    jal print_int
+    la $a0, lbl_div_a
+    jal print_str
+    move $a0, $t1
+    jal print_int
+    la $a0, lbl_div_b
+    jal print_str
+    move $a0, $t2
+    jal print_int
+    la $a0, lbl_div_r
+    jal print_str
+    move $a0, $t3
+    jal print_int
+    jal print_nl
+
+    move $a0, $t3
+    jal push_digit
+
+    move $t0, $t2
+    bne $t0, $zero, loop
+
+    la $a0, lbl_result
+    jal print_str
+
+print_loop:
+    jal pop_digit
+    beq $v1, $zero, done
+    move $a0, $v0
+    jal print_digit
+    j print_loop
+done:
+    jal print_nl
+    jr $ra
+
+zero_case:
+    la $a0, lbl_result
+    jal print_str
+    li $a0, '0'
+    jal print_char
+    jal print_nl
+    jr $ra
+
 main:
 menu_loop:
     la $a0, sep
     jal print_str
-
     la $a0, menu
     jal print_str
-
     li $v0, 5
     syscall
     move $t0, $v0
@@ -48,8 +168,31 @@ menu_loop:
     j menu_loop
 
 opcao1:
-    la $a0, opt1
+    la $a0, lbl_inteiro
     jal print_str
+    li $v0, 5
+    syscall
+    move $s0, $v0
+
+    la $a0, lbl_base
+    jal print_str
+    li $v0, 5
+    syscall
+    move $s1, $v0
+
+    li $t2, 2
+    beq $s1, $t2, ok
+    li $t2, 8
+    beq $s1, $t2, ok
+    li $t2, 16
+    beq $s1, $t2, ok
+    la $a0, lbl_invalid
+    jal print_str
+    j menu_loop
+ok:
+    move $a0, $s0
+    move $a1, $s1
+    jal dec_to_base
     j menu_loop
 
 opcao2:
