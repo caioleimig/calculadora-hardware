@@ -1,5 +1,5 @@
 .data
-menu:    .asciiz "\nCALCULADORA PROGRAMADOR DIDÁTICA\n1) DEC -> BIN/OCT/HEX\n2) DEC -> COMPLEMENTO A 2 (16 bits)\n3) REAL -> FLOAT/DOUBLE (bits IEEE-754)\n0) SAIR\nEscolha: "
+menu:    .asciiz "\nCALCULADORA PROGRAMADOR DIDÁTICA\n1) DEC -> BIN/OCT/HEX/BCD\n2) DEC -> COMPLEMENTO A 2 (16 bits)\n3) REAL -> FLOAT/DOUBLE (bits IEEE-754)\n0) SAIR\nEscolha: "
 nl:      .asciiz "\n"
 sep:     .asciiz "----------------------------------------\n"
 opt2:    .asciiz "Você escolheu: COMPLEMENTO A 2 (16 bits)\n"
@@ -14,6 +14,8 @@ lbl_div_a:   .asciiz " / "
 lbl_div_b:   .asciiz " = "
 lbl_div_r:   .asciiz " resto "
 lbl_invalid: .asciiz "Base inválida.\n"
+lbl_bcd:     .asciiz "Passos para conversão em BCD:\n"
+lbl_byte:    .asciiz "Byte BCD: 0x"
 
 stack: .space 1024
 top:   .word 0
@@ -93,16 +95,13 @@ dec_to_base:
     move $t0, $a0
     move $t1, $a1
     beq $t0, $zero, zero_case
-
     la $a0, lbl_passos
     jal print_str
     jal reset_stack
-
 loop:
     div $t0, $t1
     mflo $t2
     mfhi $t3
-
     la $a0, lbl_div
     jal print_str
     move $a0, $t0
@@ -120,16 +119,12 @@ loop:
     move $a0, $t3
     jal print_int
     jal print_nl
-
     move $a0, $t3
     jal push_digit
-
     move $t0, $t2
     bne $t0, $zero, loop
-
     la $a0, lbl_result
     jal print_str
-
 print_loop:
     jal pop_digit
     beq $v1, $zero, done
@@ -139,13 +134,56 @@ print_loop:
 done:
     jal print_nl
     jr $ra
-
 zero_case:
     la $a0, lbl_result
     jal print_str
     li $a0, '0'
     jal print_char
     jal print_nl
+    jr $ra
+
+dec_to_bcd:
+    move $t0, $a0
+    la $a0, lbl_bcd
+    jal print_str
+    jal reset_stack
+bcd_loop:
+    beq $t0, $zero, pack
+    li $t1, 10
+    div $t0, $t1
+    mflo $t2
+    mfhi $t3
+    move $a0, $t3
+    jal push_digit
+    move $t0, $t2
+    j bcd_loop
+pack:
+    jal print_nl
+    la $a0, lbl_byte
+    jal print_str
+print_bcd_bytes:
+    jal pop_digit
+    beq $v1, $zero, end_bcd
+    move $t4, $v0
+    jal pop_digit
+    beq $v1, one_left
+    move $t5, $v0
+    sll $t5, $t5, 4
+    or $t6, $t5, $t4
+    li $v0, 34
+    move $a0, $t6
+    syscall
+    jal print_nl
+    la $a0, lbl_byte
+    jal print_str
+    j print_bcd_bytes
+one_left:
+    move $t6, $t4
+    li $v0, 34
+    move $a0, $t6
+    syscall
+    jal print_nl
+end_bcd:
     jr $ra
 
 main:
@@ -157,7 +195,6 @@ menu_loop:
     li $v0, 5
     syscall
     move $t0, $v0
-
     beq $t0, $zero, exit
     li $t1, 1
     beq $t0, $t1, opcao1
@@ -166,20 +203,17 @@ menu_loop:
     li $t1, 3
     beq $t0, $t1, opcao3
     j menu_loop
-
 opcao1:
     la $a0, lbl_inteiro
     jal print_str
     li $v0, 5
     syscall
     move $s0, $v0
-
     la $a0, lbl_base
     jal print_str
     li $v0, 5
     syscall
     move $s1, $v0
-
     li $t2, 2
     beq $s1, $t2, ok
     li $t2, 8
@@ -193,18 +227,17 @@ ok:
     move $a0, $s0
     move $a1, $s1
     jal dec_to_base
+    move $a0, $s0
+    jal dec_to_bcd
     j menu_loop
-
 opcao2:
     la $a0, opt2
     jal print_str
     j menu_loop
-
 opcao3:
     la $a0, opt3
     jal print_str
     j menu_loop
-
 exit:
     la $a0, bye
     jal print_str
